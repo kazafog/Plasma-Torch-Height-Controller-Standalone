@@ -344,8 +344,10 @@ void stop()
 //*** Pass Through ***
 void passThrough()
 {
-  digitalWrite(dirPin, digitalRead(grblDirPin));
-  digitalWrite(stepPin, LOW);
-  digitalWrite(stepPin, HIGH);
+  if (arcOk){
+   digitalWrite(dirPin, digitalRead(grblDirPin));
+   digitalWrite(stepPin, LOW);
+   digitalWrite(stepPin, HIGH);
+}
 }
 //*** ^Pass Through ***
