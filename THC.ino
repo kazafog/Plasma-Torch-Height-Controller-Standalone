@@ -136,7 +136,7 @@ unsigned long ms = 0;
 
 void setup() {
 
-  pulseInterval = map(analogRead(pulseIntervalInput), 0, 1024, 10000, 0);//In microseconds.
+  pulseInterval = map(analogRead(pulseIntervalInput), 0, 1024, 10000, 25);//In microseconds. 25 appears to be as short a pulse as possible on wokwi at least.
   
   //THC inputs and outputs
   pinMode(arcOkInput, INPUT_PULLUP);
