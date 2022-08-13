@@ -147,8 +147,6 @@ unsigned long ms = 0;
 
 void setup() {
 
-  pulseInterval = map(analogRead(pulseIntervalInput), 0, 1024, 10000, 25);//In microseconds. Sets the speed of the step outputs
-  
   //THC inputs and outputs
   pinMode(arcOkInput, INPUT_PULLUP);
   pinMode(dirPin, OUTPUT);
@@ -226,6 +224,7 @@ void setup() {
     lcd.print(ftmp);
     lcd.print("V");
     lcd.setCursor(13, 0);
+    pulseInterval = map(analogRead(pulseIntervalInput), 0, 1024, 10000, 25);//In microseconds. Sets the speed of the step outputs
     int stepSpeed = map(analogRead(pulseIntervalInput), 0, 1024, 1, 99);//speed in %
     lcd.print(stepSpeed); //display pulseInterval
     if (stepSpeed<10){
