@@ -4,7 +4,12 @@
  *        and outputs pin names to match older THC standalone,
  *        added stepper outputs etc to use as standalone.
  *        **to do -- add on/off so passthrough can work
- *        
+ *  
+ *  V2 -  Added thcEngageSwitch into setup(), now if the switch is closed
+ *        the THC is on and the settings are locked. So if starting the 
+ *        THC with the switch on will immediately start and lock the settings
+ *
+ *
 */  
  
  /*Pin allocation
@@ -25,11 +30,12 @@
    D11 = engageThcSwitch //passthrough or thc control.
    D12 = dataDisplyInput //show last 200 recording of arcV
 
- *  
+ 
  *  A braindead plasma torch THC. Goes along with the board schematic in this repo.
 The gist of how this is works is, on startup, you read the potentiometer and
-pick a set point. Then it reads the analog pin for the plasma voltage, does
-comparisons to that setpoint, and triggers the optocouplers accordingly.
+pick VOLT & SPEED% set points. Then TURN THC ON and it reads the analog pin for the plasma voltage, does
+comparisons to that setpoint, and triggers the optocouplers accordingly, if the arcOk signal exists.
+
 There's a little bit of smoothing that goes into to the ADC reads to improve
 the signal's stability a bit, but we can't do too much, since otherwise, the
 LinuxCNC can't respond fast enough when the torch height really is changing.
@@ -39,10 +45,13 @@ reset button), using bitwise shifts for division, etc. Last I checked, this was
 able to do about 6000 samples per second, whereas the maximum you could get
 from simply looping analogRead() is supposed to be 9000 samples per second
 (with 10 bit precision).
+
 Two more noteworthy quirks:
 Firstly, while we let the signals for the plasma change rather rapidly, we only
 update the display several times a second and give it a much, much longer
 average. This just makes it easier on the eyes.
+
+.....ARCOK SIGNAL SHOULD TAKE CARE OF COMMENT BELOW.....
 Secondly, this is going to be giving the "UP" signal whenever the plasma
 is not cutting (since the voltage will be 0), so it is important to use
 LinuxCNC's HAL configs to only respect the THC's signals once the torch is
@@ -52,7 +61,9 @@ with that, as well as additional YouTube videos and files coming soon.
 License: http://250bpm.com/blog:82
 */
 
+#include "Arduino.h"
 
+#include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
 LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 or 0x3F for a 16 chars and 2 line display
@@ -77,6 +88,8 @@ constexpr int upLedPin = 8;
 constexpr int stepPin = 9;
 constexpr int arcOkLedPin = 10;
 constexpr int engageThcSwitch = 11;
+
+bool thcOn = false;
 
 long pulseInterval = 800;
 
@@ -134,7 +147,7 @@ unsigned long ms = 0;
 
 void setup() {
 
-  pulseInterval = map(analogRead(pulseIntervalInput), 0, 1024, 10000, 25);//In microseconds. 25 appears to be as short a pulse as possible on wokwi at least.
+  pulseInterval = map(analogRead(pulseIntervalInput), 0, 1024, 10000, 25);//In microseconds. Sets the speed of the step outputs
   
   //THC inputs and outputs
   pinMode(arcOkInput, INPUT_PULLUP);
@@ -152,8 +165,7 @@ void setup() {
   pinMode(upLedPin, OUTPUT);
   pinMode(downLedPin, OUTPUT);
 
-  //grblStepPin interrupt, will step any time if GRBL sends a step...
-  //hopefully will allow plasma cutting on 3D models ie a curved surface. 
+  //grblStepPin will only send a step if arcOk is not on.
   attachInterrupt(digitalPinToInterrupt(grblStepPin), passThrough, FALLING);
   //grblStepPin
   
@@ -171,11 +183,12 @@ void setup() {
   while((1 << shift) != SAMP)
     shift++;
 
-  // Set up the LCD. Set an easily identifiable string
-  // and show it for a moment. This makes it easy to see when the arduino reboots.
+ 
   
   //Serial.begin(115200);
   //Serial.println("Stand alone THC starting");
+  
+  // Set up the LCD. 
   lcd.init(); // initialize the lcd
   
   // Print a message to the LCD.
@@ -185,16 +198,16 @@ void setup() {
   delay(2000);
   lcd.clear();
   
+  // ....thcOn NOW LOCKS IN THE SETTINGS INSTEAD OF TIMER BELOW.....
   // Now enter the period where you can set the voltage via the potentiomenter.
-  // Default 5s period, plus an extension 2s as long as you keep adjusting it.
+  // OLD ---- Default 5s period, plus an extension 2s as long as you keep adjusting it.
   // By fixing this after boot, we save cycles from needing to do two ADC reads per loop(),
   // avoid any nonsense from potentiometer drift, and don't need to think about the
   // capacitance of the ADC muxer.
   i=0;
-  ms = millis();
-  timelimit = ms + 5000;
+  
 
-  while (ms < timelimit) {
+  while (!thcOn) {
     tmp = analogRead(setPointInput);
 
     // Keep a rotating total, buffer, and average.  Since this value only moves
@@ -207,14 +220,12 @@ void setup() {
     // Calculate the setpoint, based on min/max, and chop it to one decimal point.
     ftmp2 = MINSET + ((MAXSET-MINSET) * (target/1023.0));
     ftmp2 = ((int) (ftmp2*10))/10.0;
-
-    if (ftmp != ftmp2) {
-      ftmp = ftmp2;
-      timelimit = max(timelimit, ms + 2000);
-      lcd.setCursor(3, 0);
-      lcd.print(ftmp);
-      lcd.print("V");
-      lcd.setCursor(13, 0);
+    ftmp = ftmp2;
+      
+    lcd.setCursor(3, 0);
+    lcd.print(ftmp);
+    lcd.print("V");
+    lcd.setCursor(13, 0);
     int stepSpeed = map(analogRead(pulseIntervalInput), 0, 1024, 1, 99);//speed in %
     lcd.print(stepSpeed); //display pulseInterval
     if (stepSpeed<10){
@@ -223,11 +234,13 @@ void setup() {
     }
     lcd.setCursor(15, 0);
     lcd.print("%");
-    }
+    
 
     i = (i + 1) % 10;
-    ms = millis();
-
+    
+  if (!digitalRead(engageThcSwitch)){
+    thcOn=true;    
+  }
   }
 
   // Convert the voltage target back into an int, for ADC comparison, with the scale the plasma pin uses.
@@ -257,9 +270,20 @@ void loop() {
   mean = total >> shift;
   diff = mean - target;
 
-//is arcOK input on, if not do nothing
-arcOk = !digitalRead(arcOkInput);//Switches THC on only when arcOk signal from plasma machine.
-if (arcOk){
+ if (digitalRead(engageThcSwitch)){
+    thcOn=false;
+    digitalWrite(arcOkLedPin,LOW);
+  }
+  else{
+    thcOn=true;
+     digitalWrite(arcOkLedPin,HIGH);
+  }
+
+ //is arcOK input on, if not do nothing
+arcOk = !digitalRead(arcOkInput);
+
+ if (arcOk & thcOn){//Starts THC steps only when arcOk and thcOn signals are true
+
 
   // If the mean is very low, then the plasma is turned off - it's just ADC
   // noise you're seeing and it and should be ignored.
@@ -303,7 +327,7 @@ if (arcOk){
   }
 
 }
-//if arcOk signal is not OK stop movement
+//if arcOk signal is not present stop stepping
 else{
   mode = 0;
       digitalWrite(upLedPin, LOW);
@@ -342,10 +366,10 @@ void stop()
 //*** Pass Through ***
 void passThrough()
 {
-  if (arcOk){
-   digitalWrite(dirPin, digitalRead(grblDirPin));
-   digitalWrite(stepPin, LOW);
-   digitalWrite(stepPin, HIGH);
+  if (!arcOk){
+    digitalWrite(dirPin, digitalRead(grblDirPin));
+    digitalWrite(stepPin, LOW);
+    digitalWrite(stepPin, HIGH);
 }
 }
 //*** ^Pass Through ***
