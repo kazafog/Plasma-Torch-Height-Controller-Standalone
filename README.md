@@ -12,17 +12,20 @@ I am no programmer or electronic giru so take precautions if you are considering
 If anyone can make use of this and has any good feedback that'd be muchly appreciated.
 
 
-
-
-
 -----controls on the THC-------------
 
 -THC on switch
+
 -2 x 10k pots (for setting volt and stepper speed%)
+
 -LCD
+
 -THC on LED
+
 -THC raise LED
+
 -THC lower LED
+
 
 -----connections to THC--------
 
@@ -37,6 +40,7 @@ If anyone can make use of this and has any good feedback that'd be muchly apprec
 - ark OK output from plasma cutter (with THC GND as it is a dry contact) 
 - +torch voltage from plasma cutter (50:1 voltage divider)
 - -torch voltage from plasma cutter
+
 
 
 -----how it functions (or should)-----
