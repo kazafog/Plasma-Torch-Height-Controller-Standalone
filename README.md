@@ -56,3 +56,7 @@ If anyone can make use of this and has any good feedback that'd be muchly apprec
 note:
 
 keep in mind, this program DOES NOT take into account de-acceleration whether it happens in corners etc or passing over kerfs etc. I am hoping I may be able to some what sort these types of issues once I am able to get it working in anger. Failing that I may have to go the linuxcnc route, but currently the learning curve is too steep for my available time, too many projects.
+
+WELL....my machine is up and running (sort of) but it is no longer run by GRBL and is instead now powered by linuxcnc and a mesa card, so I no longer require a standalone THC so I have modified this code and added another program that only sends and UP and Down signal to the controller instead of steps etc.  Please see 'THC up and down only' program if this will suit you.
+
+But for those wanting to use this on the GRBL -- To handle lower speed cutting ie during arcs I would add another input to this program to disable the THC temporarily and use the coolant output on GRBL to send the disable signal. This would be very simple in either a post processor, to add the coolant on at the start of every arc and stop at the end of each arc. GOOD LUCK
